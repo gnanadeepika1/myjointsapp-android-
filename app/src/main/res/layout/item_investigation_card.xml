@@ -10,45 +10,66 @@
     card_view:cardUseCompatPadding="true"
     android:foreground="?android:attr/selectableItemBackground">
 
+    <!-- Main horizontal container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="14dp"
         android:background="#E7F5FF">
 
-        <!-- Title row: flask icon + Investigation text -->
+        <!-- LEFT CONTENT -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <ImageView
-                android:id="@+id/ic_inv"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:src="@android:drawable/ic_menu_info_details"
-                android:tint="#5B2BD9" />
-
-            <TextView
-                android:id="@+id/tvInvestigationTitle"
-                android:layout_width="wrap_content"
+            <!-- Title row: icon + Investigation text -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="Investigation"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="#F5A1D9" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:id="@+id/ic_inv"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:src="@android:drawable/ic_menu_info_details"
+                    android:tint="#5B2BD9" />
+
+                <TextView
+                    android:id="@+id/tvInvestigationTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Investigation"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#F5A1D9" />
+            </LinearLayout>
+
+            <!-- Container for investigation details -->
+            <LinearLayout
+                android:id="@+id/llDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="10dp" />
         </LinearLayout>
 
-        <!-- Container where you programmatically add bullet lines -->
-        <LinearLayout
-            android:id="@+id/llDetails"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="10dp" />
+        <!-- RIGHT: Delete button -->
+        <ImageView
+            android:id="@+id/btnDeleteInvestigation"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_delete_account"
+            android:padding="8dp"
+            android:layout_gravity="center_vertical"
+            android:tint="#000000"
+            android:contentDescription="Delete Investigation" />
+
     </LinearLayout>
 
 </androidx.cardview.widget.CardView>

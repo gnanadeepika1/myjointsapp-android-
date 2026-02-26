@@ -42,15 +42,16 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
 
     private final List<MedicationHistoryItem> items = new ArrayList<>();
     private MedicationHistoryAdapter adapter;
-
     private String patientId;
 
     private static final String BASE_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/";
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/";
     private static final String GET_MEDICATIONS_URL =
             BASE_URL + "get_medications.php";
     private static final String ADD_MEDICATION_URL =
             BASE_URL + "add_medication.php";
+    private static final String DELETE_MEDICATION_URL =
+            BASE_URL + "delete_medication.php";
     private static final String GET_GRAPH_URL =
             BASE_URL + "get_graph.php";
 
@@ -77,17 +78,18 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
         }
 
         patientId = patientId.toLowerCase().trim();
-
         if (!patientId.matches("^pat_\\d{4}$")) {
-            Toast.makeText(this, "Invalid patient ID: " + patientId, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Invalid patient ID", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
         tvPatientId.setText("Patient ID: " + patientId);
-        Log.d(TAG, "Using patientId = " + patientId);
 
-        adapter = new MedicationHistoryAdapter(items);
+        adapter = new MedicationHistoryAdapter(
+                items,
+                this::confirmDeleteMedication
+        );
         rvMedications.setLayoutManager(new LinearLayoutManager(this));
         rvMedications.setAdapter(adapter);
 
@@ -98,7 +100,7 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ADD MEDICATION DIALOG
+    // ADD MEDICATION DIALOG (FINAL VALIDATIONS)
     // =====================================================
     private void showAddMedicationDialog() {
         View view = getLayoutInflater().inflate(R.layout.dialog_add_medication, null);
@@ -116,12 +118,40 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
         dialog.setOnShowListener(d -> {
             Button btnAdd = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             btnAdd.setOnClickListener(v -> {
+
                 String name = etName.getText().toString().trim();
                 String dose = etDose.getText().toString().trim();
                 String period = etPeriod.getText().toString().trim();
 
-                if (name.isEmpty()) {
-                    etName.setError("Enter medication name");
+                // Required
+                if (TextUtils.isEmpty(name)) {
+                    etName.setError("Required");
+                    return;
+                }
+                if (TextUtils.isEmpty(dose)) {
+                    etDose.setError("Required");
+                    return;
+                }
+                if (TextUtils.isEmpty(period)) {
+                    etPeriod.setError("Required");
+                    return;
+                }
+
+                // Name: letters + spaces
+                if (!name.matches("^[A-Za-z ]+$")) {
+                    etName.setError("Only letters and spaces allowed");
+                    return;
+                }
+
+                // Dose: must contain mg
+                if (!dose.matches("^\\d+\\s*mg$")) {
+                    etDose.setError("Dose must be in mg (e.g. 500mg)");
+                    return;
+                }
+
+                // Period: letters + numbers + spaces
+                if (!period.matches("^[A-Za-z0-9 ]+$")) {
+                    etPeriod.setError("Only letters, numbers and spaces allowed");
                     return;
                 }
 
@@ -134,7 +164,7 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ADD MEDICATION (REAL SERVER RESPONSE)
+    // ADD MEDICATION
     // =====================================================
     private void addMedicationToServer(String name, String dose, String period) {
         new Thread(() -> {
@@ -163,7 +193,6 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                                         : conn.getErrorStream()
                         )
                 );
-
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
@@ -171,14 +200,17 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
 
                 JSONObject res = new JSONObject(sb.toString());
                 boolean success = res.optBoolean("success", false);
-                String message = res.optString("message");
 
                 runOnUiThread(() -> {
                     if (success) {
                         Toast.makeText(this, "Medication added", Toast.LENGTH_SHORT).show();
                         loadMedicationsFromServer();
                     } else {
-                        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                        Toast.makeText(
+                                this,
+                                res.optString("message", "Failed"),
+                                Toast.LENGTH_LONG
+                        ).show();
                     }
                 });
 
@@ -186,6 +218,62 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                 Log.e(TAG, "Add medication error", e);
                 runOnUiThread(() ->
                         Toast.makeText(this, "Server error", Toast.LENGTH_LONG).show()
+                );
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }).start();
+    }
+
+    // =====================================================
+    // DELETE MEDICATION
+    // =====================================================
+    private void confirmDeleteMedication(MedicationHistoryItem item) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Medication")
+                .setMessage("Are you sure you want to delete this medication?")
+                .setPositiveButton("Yes", (d, w) -> deleteMedicationFromServer(item))
+                .setNegativeButton("No", null)
+                .show();
+    }
+
+    private void deleteMedicationFromServer(MedicationHistoryItem item) {
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(DELETE_MEDICATION_URL);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
+
+                JSONObject body = new JSONObject();
+                body.put("patient_id", patientId);
+                body.put("name", item.getName());
+                body.put("dose", item.getDose());
+                body.put("period", item.getPeriod());
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes("UTF-8"));
+                os.close();
+
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
+                br.close();
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Medication deleted", Toast.LENGTH_SHORT).show();
+                    loadMedicationsFromServer();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Delete medication error", e);
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Delete failed", Toast.LENGTH_LONG).show()
                 );
             } finally {
                 if (conn != null) conn.disconnect();
@@ -203,8 +291,11 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                 URL url = new URL(GET_MEDICATIONS_URL);
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                 conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
@@ -216,7 +307,6 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                 BufferedReader br = new BufferedReader(
                         new InputStreamReader(conn.getInputStream())
                 );
-
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
@@ -246,7 +336,7 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // AI SUGGESTION
+    // AI SUGGESTION (UNCHANGED)
     // =====================================================
     private void loadLatestScoresAndRunAI() {
         new Thread(() -> {
@@ -257,7 +347,6 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                 BufferedReader br = new BufferedReader(
                         new InputStreamReader(conn.getInputStream())
                 );
-
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
@@ -284,7 +373,7 @@ public class MedicationsHistoryActivity extends AppCompatActivity {
                 );
 
             } catch (Exception e) {
-                Log.e(TAG, "AI load error", e);
+                Log.e(TAG, "AI error", e);
             }
         }).start();
     }

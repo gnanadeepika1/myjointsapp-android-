@@ -38,7 +38,7 @@ public class DoctorSignupActivity extends AppCompatActivity {
     private static final String KEY_PASSWORD = "password";
 
     private static final String SIGNUP_URL =
-            RetrofitClient.BASE_URL + "jointcare/doctor_signup.php";
+            RetrofitClient.BASE_URL + "doctor_signup.php";
 
     // 🔹 PASSWORD VALIDATION (same as login)
     private static final String PASSWORD_PATTERN =

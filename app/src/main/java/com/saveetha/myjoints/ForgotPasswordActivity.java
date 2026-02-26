@@ -34,7 +34,7 @@ public class ForgotPasswordActivity extends AppCompatActivity {
             "^[A-Za-z][A-Za-z0-9]*@gmail\\.com$";
 
     private static final String FORGOT_PASSWORD_URL =
-            RetrofitClient.BASE_URL + "jointcare/forgot_password.php";
+            RetrofitClient.BASE_URL + "forgot_password.php";
 
     private String userType; // doctor or patient
 

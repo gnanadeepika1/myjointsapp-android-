@@ -12,6 +12,7 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp">
 
+        <!-- Back button -->
         <ImageView
             android:id="@+id/btnBack"
             android:layout_width="36dp"
@@ -20,6 +21,7 @@
             android:src="@drawable/ic_arrow_back"
             android:padding="6dp" />
 
+        <!-- Doctor name -->
         <TextView
             android:id="@+id/tvDoctorHeaderName"
             android:layout_width="wrap_content"
@@ -33,13 +35,25 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <!-- RIGHT SIDE ICONS (DELETE + LOGOUT SIDE BY SIDE) -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end|center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="center">
 
-            <!-- Only logout button left -->
+            <!-- Delete Account (NOW SAME AS PATIENT DASHBOARD) -->
+            <ImageView
+                android:id="@+id/btnDeleteAccount"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_delete_account"
+                android:padding="6dp"
+                android:layout_marginEnd="12dp"
+                android:tint="#000000" />
+
+            <!-- Logout -->
             <ImageView
                 android:id="@+id/btnLogout"
                 android:layout_width="36dp"
@@ -107,7 +121,7 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- My Patients title with PINK people icon -->
+            <!-- My Patients title -->
             <TextView
                 android:id="@+id/tvPatientsTitle"
                 android:layout_width="wrap_content"
@@ -127,4 +141,5 @@
                 android:orientation="vertical" />
         </LinearLayout>
     </ScrollView>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

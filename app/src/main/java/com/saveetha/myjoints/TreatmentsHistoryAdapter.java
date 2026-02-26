@@ -3,18 +3,30 @@ package com.saveetha.myjoints;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import java.util.List;
 
 public class TreatmentsHistoryAdapter
         extends RecyclerView.Adapter<TreatmentsHistoryAdapter.ViewHolder> {
 
-    private final List<TreatmentRecord> list;
+    public interface OnDeleteClick {
+        void onDelete(TreatmentRecord record);
+    }
 
-    public TreatmentsHistoryAdapter(List<TreatmentRecord> list) {
+    private final List<TreatmentRecord> list;
+    private final OnDeleteClick deleteClick;
+
+    public TreatmentsHistoryAdapter(
+            List<TreatmentRecord> list,
+            OnDeleteClick deleteClick
+    ) {
         this.list = list;
+        this.deleteClick = deleteClick;
     }
 
     @NonNull
@@ -41,7 +53,12 @@ public class TreatmentsHistoryAdapter
                         + " (" + r.getFrequencyText() + ")"
         );
         h.tvDuration.setText("Duration: " + r.getDuration());
-        h.tvPatientId.setText("Patient ID: " + r.getPatientId());
+
+        // Patient ID is intentionally NOT displayed
+
+        h.btnDelete.setOnClickListener(v ->
+                deleteClick.onDelete(r)
+        );
     }
 
     @Override
@@ -52,7 +69,8 @@ public class TreatmentsHistoryAdapter
     static class ViewHolder extends RecyclerView.ViewHolder {
 
         TextView tvMedicine, tvDose, tvRoute,
-                tvFrequency, tvDuration, tvPatientId;
+                tvFrequency, tvDuration;
+        ImageView btnDelete;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -61,7 +79,7 @@ public class TreatmentsHistoryAdapter
             tvRoute = itemView.findViewById(R.id.tvRoute);
             tvFrequency = itemView.findViewById(R.id.tvFrequency);
             tvDuration = itemView.findViewById(R.id.tvDuration);
-            tvPatientId = itemView.findViewById(R.id.tvPatientIdBottom);
+            btnDelete = itemView.findViewById(R.id.btnDeleteTreatment);
         }
     }
 }

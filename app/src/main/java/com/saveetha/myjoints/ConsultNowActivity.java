@@ -39,10 +39,10 @@ public class ConsultNowActivity extends AppCompatActivity {
     private static final String KEY_PATIENT_ID = "patient_id";
 
     private static final String GET_DOCTORS_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/get_doctors.php";
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/get_doctors.php";
 
     private static final String ASSIGN_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/assign_doctor_to_patient.php";
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/assign_doctor_to_patient.php";
 
     static class Doctor {
         final String emoji;
@@ -70,10 +70,7 @@ public class ConsultNowActivity extends AppCompatActivity {
 
         backBtn.setOnClickListener(v -> finish());
 
-        fetchDoctors();
-
         btnSend.setOnClickListener(v -> {
-
             if (selectedDoctorId == null) {
                 Toast.makeText(this, "Please select a doctor", Toast.LENGTH_SHORT).show();
                 return;
@@ -95,6 +92,14 @@ public class ConsultNowActivity extends AppCompatActivity {
 
             assignDoctorToPatient(patientId, selectedDoctorId, complaint);
         });
+    }
+
+    // 🔥 IMPORTANT FIX
+    // Reload doctors every time this page becomes visible
+    @Override
+    protected void onResume() {
+        super.onResume();
+        fetchDoctors();
     }
 
     private void fetchDoctors() {
@@ -144,10 +149,12 @@ public class ConsultNowActivity extends AppCompatActivity {
         llDoctors.removeAllViews();
         LayoutInflater inflater = LayoutInflater.from(this);
 
-        for (Doctor d : doctors) {
+        selectedDoctorId = null;
+        selectedRadio = null;
 
-            // ✅ FIXED LINE
-            View card = inflater.inflate(R.layout.item_consult_card, llDoctors, false);
+        for (Doctor d : doctors) {
+            View card = inflater.inflate(
+                    R.layout.item_consult_card, llDoctors, false);
 
             TextView tvEmoji = card.findViewById(R.id.tvEmoji);
             TextView tvDoctorName = card.findViewById(R.id.tvDoctorName);
@@ -174,7 +181,11 @@ public class ConsultNowActivity extends AppCompatActivity {
         }
     }
 
-    private void assignDoctorToPatient(String patientId, String doctorId, String complaint) {
+    private void assignDoctorToPatient(
+            String patientId,
+            String doctorId,
+            String complaint
+    ) {
         new Thread(() -> {
             HttpURLConnection conn = null;
             try {
@@ -182,7 +193,10 @@ public class ConsultNowActivity extends AppCompatActivity {
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
@@ -214,7 +228,11 @@ public class ConsultNowActivity extends AppCompatActivity {
             } catch (Exception e) {
                 e.printStackTrace();
                 runOnUiThread(() ->
-                        Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                                this,
+                                "Error: " + e.getMessage(),
+                                Toast.LENGTH_LONG
+                        ).show()
                 );
             } finally {
                 if (conn != null) conn.disconnect();

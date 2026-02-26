@@ -17,7 +17,7 @@ public interface ApiService {
 
     // ✅ FIXED: use FormUrlEncoded + Field (CRITICAL)
     @FormUrlEncoded
-    @POST("jointcare/save_graph.php")
+    @POST("save_graph.php")
     Call<Map<String, Object>> insertDiseaseScore(
             @Field("patient_id") String patientId,
             @Field("tjc") int tjc,
@@ -28,14 +28,14 @@ public interface ApiService {
     );
 
     // UNCHANGED
-    @GET("jointcare/get_graph.php")
+    @GET("get_graph.php")
     Call<DiseaseScores> getGraph(@Query("patient_id") String patientId);
 
     // UNCHANGED
-    @POST("jointcare/save_daily_pain.php")
+    @POST("save_daily_pain.php")
     Call<Map<String, Object>> saveDailyPainValue(@Body Map<String, Object> request);
 
     // UNCHANGED
-    @GET("jointcare/get_daily_pain_value.php")
+    @GET("get_daily_pain_value.php")
     Call<PainResponse> getPainValues(@Query("user_id") String patientId);
 }

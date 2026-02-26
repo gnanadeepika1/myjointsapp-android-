@@ -38,7 +38,7 @@ public class DoctorLoginActivity extends AppCompatActivity {
     private static final String KEY_PASSWORD = "password";
 
     private static final String LOGIN_URL =
-            RetrofitClient.BASE_URL + "jointcare/doctor_login.php";
+            RetrofitClient.BASE_URL + "doctor_login.php";
 
     private SharedPreferences prefs;
 

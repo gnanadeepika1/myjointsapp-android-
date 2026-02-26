@@ -3,6 +3,7 @@ package com.saveetha.myjoints;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -27,7 +28,6 @@ import java.util.Map;
 public class AssessmentActivity extends AppCompatActivity {
 
     ActivityAssessmentBinding binding;
-
     float pga = 0f;
     float ea = 0f;
 
@@ -78,13 +78,32 @@ public class AssessmentActivity extends AppCompatActivity {
 
             String crpStr = edtCrp.getText().toString().trim();
 
-            if (crpStr.isEmpty()) {
-                Static.toast(AssessmentActivity.this, "Enter CRP value");
+            // 🔹 CRP required
+            if (TextUtils.isEmpty(crpStr)) {
+                edtCrp.setError("CRP is required");
+                edtCrp.requestFocus();
                 return;
             }
 
-            float crp = Float.parseFloat(crpStr);
+            float crp;
 
+            // 🔹 CRP numeric validation
+            try {
+                crp = Float.parseFloat(crpStr);
+            } catch (NumberFormatException e) {
+                edtCrp.setError("CRP must be a numeric value");
+                edtCrp.requestFocus();
+                return;
+            }
+
+            // 🔹 CRP range validation (CLEAR, EXAM-FRIENDLY)
+            if (crp < 0 || crp > 200) {
+                edtCrp.setError("CRP must be between 0 and 200 mg/dL");
+                edtCrp.requestFocus();
+                return;
+            }
+
+            // ✅ Valid CRP → proceed
             saveValue(patientId, tjc, sjc, pga, ea, crp);
         });
 
@@ -95,8 +114,9 @@ public class AssessmentActivity extends AppCompatActivity {
         });
     }
 
-    // ================= FIXED API CALL =================
-    private void saveValue(String patientId, int tjc, int sjc, float pga, float ea, float crp) {
+    // ================= API CALL =================
+    private void saveValue(String patientId, int tjc, int sjc,
+                           float pga, float ea, float crp) {
 
         AlertDialog progress = Static.showProgress(this);
         progress.show();
@@ -104,14 +124,11 @@ public class AssessmentActivity extends AppCompatActivity {
         RetrofitClient.getService()
                 .insertDiseaseScore(patientId, tjc, sjc, pga, ea, crp)
                 .enqueue(new Callback<Map<String, Object>>() {
-
                     @Override
                     public void onResponse(Call<Map<String, Object>> call,
                                            Response<Map<String, Object>> response) {
                         progress.dismiss();
-
                         if (response.isSuccessful() && response.body() != null) {
-
                             new AlertDialog.Builder(AssessmentActivity.this)
                                     .setTitle("Success")
                                     .setMessage(response.body().get("message").toString())
@@ -126,7 +143,6 @@ public class AssessmentActivity extends AppCompatActivity {
                                         finish();
                                     })
                                     .show();
-
                         } else {
                             Static.showErrorResponse(
                                     AssessmentActivity.this,

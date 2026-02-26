@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -21,7 +22,6 @@
             android:paddingHorizontal="15dp"
             android:elevation="4dp">
 
-            <!-- Back Button -->
             <ImageView
                 android:id="@+id/back_btn"
                 android:layout_width="28dp"
@@ -29,7 +29,6 @@
                 android:src="@drawable/ic_arrow_back"
                 android:tint="#000" />
 
-            <!-- Icon -->
             <ImageView
                 android:layout_width="45dp"
                 android:layout_height="45dp"
@@ -38,7 +37,6 @@
                 android:padding="6dp"
                 android:src="@drawable/doctor" />
 
-            <!-- Title -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -57,7 +55,6 @@
             android:layout_marginTop="18dp"
             android:padding="12dp">
 
-            <!-- Doctor ID (now EDITABLE) -->
             <EditText
                 android:id="@+id/etDoctorId"
                 android:layout_width="match_parent"
@@ -123,7 +120,6 @@
                 android:digits="0123456789"
                 android:elevation="2dp" />
 
-            <!-- Specialization -->
             <EditText
                 android:id="@+id/etSpecialization"
                 android:layout_width="match_parent"
@@ -140,37 +136,51 @@
                 android:maxLength="50"
                 android:elevation="2dp" />
 
-            <EditText
-                android:id="@+id/etPassword"
+            <!-- Password (NO floating label gap) -->
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:hint="Password"
-                android:padding="12dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:background="#DFF4FB"
-                android:textColor="#000"
-                android:textColorHint="#666"
-                android:inputType="textPassword"
-                android:maxLines="1"
-                android:singleLine="true"
-                android:maxLength="20"
-                android:elevation="2dp" />
+                app:endIconMode="password_toggle"
+                app:hintEnabled="false">
 
-            <EditText
-                android:id="@+id/etConfirmPassword"
+                <EditText
+                    android:id="@+id/etPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="55dp"
+                    android:hint="Password"
+                    android:padding="12dp"
+                    android:background="#DFF4FB"
+                    android:textColor="#000"
+                    android:textColorHint="#666"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:singleLine="true"
+                    android:maxLength="20" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Confirm Password (NO floating label gap) -->
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:hint="Confirm Password"
-                android:padding="12dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:background="#DFF4FB"
-                android:textColor="#000"
-                android:textColorHint="#666"
-                android:inputType="textPassword"
-                android:maxLines="1"
-                android:singleLine="true"
-                android:maxLength="20"
-                android:elevation="2dp" />
+                app:endIconMode="password_toggle"
+                app:hintEnabled="false">
+
+                <EditText
+                    android:id="@+id/etConfirmPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="55dp"
+                    android:hint="Confirm Password"
+                    android:padding="12dp"
+                    android:background="#DFF4FB"
+                    android:textColor="#000"
+                    android:textColorHint="#666"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:singleLine="true"
+                    android:maxLength="20" />
+            </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnPatient"
@@ -186,6 +196,5 @@
                 app:cornerRadius="30dp" />
 
         </LinearLayout>
-
     </LinearLayout>
 </ScrollView>

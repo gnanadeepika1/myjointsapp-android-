@@ -10,76 +10,97 @@
     card_view:cardUseCompatPadding="true"
     android:foreground="?android:attr/selectableItemBackground">
 
+    <!-- Main container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="14dp"
         android:background="#E7F5FF">
 
-        <!-- Header row: emoji + title -->
+        <!-- LEFT CONTENT -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <!-- emoji from code: 💊 -->
-            <TextView
-                android:id="@+id/tvEmoji"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:gravity="center"
-                android:textSize="18sp" />
-
-            <TextView
-                android:id="@+id/tvHeaderTitle"
-                android:layout_width="wrap_content"
+            <!-- Header row: emoji + title -->
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="Medications"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="#F5A1D9" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Emoji -->
+                <TextView
+                    android:id="@+id/tvEmoji"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:gravity="center"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/tvHeaderTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Medications"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#F5A1D9" />
+            </LinearLayout>
+
+            <!-- Inner light-pink block -->
+            <LinearLayout
+                android:id="@+id/innerContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#FCE7FF"
+                android:padding="12dp"
+                android:layout_marginTop="10dp">
+
+                <TextView
+                    android:id="@+id/tvMedName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Paracetamol"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#000000" />
+
+                <TextView
+                    android:id="@+id/tvDose"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Dose: 2"
+                    android:textSize="14sp"
+                    android:textColor="#000000" />
+
+                <TextView
+                    android:id="@+id/tvPeriod"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Period: daily 3 times"
+                    android:textSize="14sp"
+                    android:textColor="#000000" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Inner light-pink block with medication data -->
-        <LinearLayout
-            android:id="@+id/innerContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#FCE7FF"
-            android:padding="12dp"
-            android:layout_marginTop="10dp">
-
-            <TextView
-                android:id="@+id/tvMedName"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Paracetamol"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="#000000" />
-
-            <TextView
-                android:id="@+id/tvDose"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="Dose: 2"
-                android:textSize="14sp"
-                android:textColor="#000000" />
-
-            <TextView
-                android:id="@+id/tvPeriod"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="Period: daily 3 times"
-                android:textSize="14sp"
-                android:textColor="#000000" />
-        </LinearLayout>
+        <!-- RIGHT: Delete button -->
+        <ImageView
+            android:id="@+id/btnDeleteMedication"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_delete_account"
+            android:padding="8dp"
+            android:layout_gravity="center_vertical"
+            android:tint="#000000"
+            android:contentDescription="Delete Medication" />
 
     </LinearLayout>
+
 </androidx.cardview.widget.CardView>

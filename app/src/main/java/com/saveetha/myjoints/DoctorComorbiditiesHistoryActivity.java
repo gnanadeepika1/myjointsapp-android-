@@ -3,7 +3,6 @@ package com.saveetha.myjoints;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
@@ -21,32 +20,29 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
 public class DoctorComorbiditiesHistoryActivity extends AppCompatActivity {
 
-    private LinearLayout llComorbidityList;   // matches activity_doctor_comorbidities_history.xml
+    private LinearLayout llComorbidityList;
     private ImageView backBtn;
     private FloatingActionButton fabAdd;
     private TextView tvPatientId;
 
-    private static final String GET_COMORBIDITIES_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/get_comorbidities.php";
-    private static final String ADD_COMORBIDITY_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/add_comorbidity.php";
+    private static final String BASE_URL =
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/";
+    private static final String GET_URL    = BASE_URL + "get_comorbidities.php";
+    private static final String ADD_URL    = BASE_URL + "add_comorbidity.php";
+    private static final String DELETE_URL = BASE_URL + "delete_comorbidity.php";
 
-    private static final String PREFS_NAME_DOCTOR = "doctor_prefs";
-    private static final String KEY_DOCTOR_ID     = "doctor_id";
-    private static final String TAG               = "DocComorbidHistory";
-
-    private String patientId;
-    private String doctorId;
+    private String patientId, doctorId;
+    private final List<ComorbidityItem> items = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,232 +50,253 @@ public class DoctorComorbiditiesHistoryActivity extends AppCompatActivity {
         setContentView(R.layout.activity_doctor_comorbidities_history);
 
         llComorbidityList = findViewById(R.id.llComorbidityList);
-        backBtn           = findViewById(R.id.back_btn);
-        fabAdd            = findViewById(R.id.fabAdd);
-        tvPatientId       = findViewById(R.id.tvPatientId);
+        backBtn = findViewById(R.id.back_btn);
+        fabAdd = findViewById(R.id.fabAdd);
+        tvPatientId = findViewById(R.id.tvPatientId);
 
-        // patient id from MedicalRecordsActivity
         patientId = getIntent().getStringExtra("patient_id");
         if (TextUtils.isEmpty(patientId)) {
-            Toast.makeText(this,
-                    "No patient id provided to Comorbidities screen",
-                    Toast.LENGTH_LONG).show();
+            toast("Patient ID missing");
             finish();
             return;
         }
+
+        SharedPreferences prefs =
+                getSharedPreferences("doctor_prefs", MODE_PRIVATE);
+        doctorId = prefs.getString("doctor_id", null);
+        if (TextUtils.isEmpty(doctorId)) {
+            toast("Please login again");
+            finish();
+            return;
+        }
+
         tvPatientId.setText("Patient ID: " + patientId);
 
-        // doctor id from prefs
-        SharedPreferences prefs =
-                getSharedPreferences(PREFS_NAME_DOCTOR, MODE_PRIVATE);
-        doctorId = prefs.getString(KEY_DOCTOR_ID, null);
-        if (TextUtils.isEmpty(doctorId)) {
-            Toast.makeText(this,
-                    "No doctor id found. Please login again.",
-                    Toast.LENGTH_LONG).show();
-            finish();
-            return;
-        }
-
         backBtn.setOnClickListener(v -> onBackPressed());
-        fabAdd.setOnClickListener(v -> showAddComorbidityDialog());
+        fabAdd.setOnClickListener(v -> showAddDialog());
 
-        loadComorbiditiesFromServer();
+        loadFromServer();
     }
 
-    // ---------------- Dialog to add comorbidity ----------------
-    private void showAddComorbidityDialog() {
-        final EditText input = new EditText(this);
-        input.setHint("Enter comorbidity (e.g. Diabetes)");
+    // =====================================================
+    // ADD COMORBIDITY
+    // =====================================================
+    private void showAddDialog() {
+        EditText input = new EditText(this);
+        input.setHint("Enter comorbidity");
 
         new AlertDialog.Builder(this)
                 .setTitle("Add Comorbidity")
                 .setView(input)
-                .setPositiveButton("Submit", (dialog, which) -> {
+                .setPositiveButton("Add", (d, w) -> {
                     String text = input.getText().toString().trim();
-                    if (text.isEmpty()) {
-                        Toast.makeText(this,
-                                "Comorbidity cannot be empty",
-                                Toast.LENGTH_SHORT).show();
-                    } else {
-                        addComorbidityToServer(text);
+
+                    if (TextUtils.isEmpty(text)) {
+                        toast("Comorbidity cannot be empty");
+                        return;
                     }
+
+                    // ✅ VALIDATION ADDED (ONLY CHARACTERS AND SPACES)
+                    if (!text.matches("^[A-Za-z ]+$")) {
+                        toast("Only letters and spaces are allowed");
+                        return;
+                    }
+
+                    addToServer(text);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
-    private void addComorbidityToServer(String text) {
+    private void addToServer(String text) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(ADD_COMORBIDITY_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(ADD_URL).openConnection();
                 conn.setRequestMethod("POST");
-                conn.setDoInput(true);
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
                 body.put("doctor_id", doctorId);
-                body.put("text", text);             // main comorbidity text
-                body.put("title", "Comorbidity");   // heading shown in pink
+                body.put("title", "Comorbidity");
+                body.put("text", text);
 
-                String jsonBody = body.toString();
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                int code = conn.getResponseCode();
-                InputStream is = (code >= 200 && code < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
+                while ((line = br.readLine()) != null) sb.append(line);
+                br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "ADD_COMORBIDITY response: " + respStr);
-
-                JSONObject json = new JSONObject(respStr);
-                boolean success = json.optBoolean("success", false);
-                String msg = json.optString("message",
-                        success ? "Comorbidity added" : "Failed to add comorbidity");
+                JSONObject res = new JSONObject(sb.toString());
 
                 runOnUiThread(() -> {
-                    Toast.makeText(DoctorComorbiditiesHistoryActivity.this,
-                            msg,
-                            Toast.LENGTH_LONG).show();
-                    if (success) {
-                        loadComorbiditiesFromServer(); // refresh list
+                    if (res.optBoolean("success")) {
+                        toast("Comorbidity added");
+                        loadFromServer();
+                    } else {
+                        toast(res.optString("message", "Add failed"));
                     }
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() ->
-                        Toast.makeText(DoctorComorbiditiesHistoryActivity.this,
-                                "Error adding comorbidity: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show()
-                );
-            } finally {
-                if (conn != null) conn.disconnect();
+                runOnUiThread(() -> toast("Server error"));
             }
         }).start();
     }
 
-    // ---------------- Load comorbidities ----------------
-    private void loadComorbiditiesFromServer() {
+    // =====================================================
+    // DELETE COMORBIDITY
+    // =====================================================
+    private void deleteFromServer(ComorbidityItem item) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(GET_COMORBIDITIES_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(DELETE_URL).openConnection();
                 conn.setRequestMethod("POST");
-                conn.setDoInput(true);
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
+
+                JSONObject body = new JSONObject();
+                body.put("id", item.id);
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                os.close();
+
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+                br.close();
+
+                JSONObject res = new JSONObject(sb.toString());
+
+                runOnUiThread(() -> {
+                    if (res.optBoolean("success")) {
+                        toast("Comorbidity deleted");
+                        loadFromServer();
+                    } else {
+                        toast(res.optString("message", "Delete failed"));
+                    }
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() -> toast("Server error"));
+            }
+        }).start();
+    }
+
+    // =====================================================
+    // LOAD COMORBIDITIES
+    // =====================================================
+    private void loadFromServer() {
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(GET_URL).openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
-                String jsonBody = body.toString();
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                InputStream is = (conn.getResponseCode() >= 200 && conn.getResponseCode() < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null)
-                    sb.append(line);
+                while ((line = br.readLine()) != null) sb.append(line);
+                br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "GET_COMORBIDITIES response: " + respStr);
-
-                JSONObject json = new JSONObject(respStr);
-                boolean success = json.getBoolean("success");
+                JSONObject res = new JSONObject(sb.toString());
+                JSONArray arr = res.optJSONArray("comorbidities");
 
                 List<ComorbidityItem> temp = new ArrayList<>();
-
-                if (success) {
-                    JSONArray arr = json.optJSONArray("comorbidities");
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length(); i++) {
-                            JSONObject c = arr.getJSONObject(i);
-                            String title = c.optString("title", "Comorbidity");
-                            String text  = c.optString("text", "");
-                            temp.add(new ComorbidityItem(title, text));
-                        }
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject o = arr.getJSONObject(i);
+                        temp.add(new ComorbidityItem(
+                                o.getInt("id"),
+                                o.getString("title"),
+                                o.getString("text")
+                        ));
                     }
-                } else {
-                    String msg = json.optString("message", "Failed to load comorbidities");
-                    runOnUiThread(() ->
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
                 }
 
                 runOnUiThread(() -> {
-                    llComorbidityList.removeAllViews();
-                    LayoutInflater inflater = LayoutInflater.from(this);
-
-                    for (ComorbidityItem item : temp) {
-                        View card = inflater.inflate(
-                                R.layout.item_comorbidity_history,
-                                llComorbidityList,
-                                false
-                        );
-                        TextView tvTitle = card.findViewById(R.id.tvTitle);
-                        TextView tvText  = card.findViewById(R.id.tvText);
-
-                        tvTitle.setText(item.title);
-                        tvText.setText(item.text);
-
-                        llComorbidityList.addView(card);
-                    }
-
-                    if (temp.isEmpty()) {
-                        Toast.makeText(this,
-                                "No comorbidities found for this patient",
-                                Toast.LENGTH_SHORT).show();
-                    }
+                    items.clear();
+                    items.addAll(temp);
+                    render();
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error loading comorbidities: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                runOnUiThread(() -> toast("Load failed"));
             }
         }).start();
     }
 
-    // ---------------- Model ----------------
-    private static class ComorbidityItem {
-        final String title;
-        final String text;
+    // =====================================================
+    // RENDER UI
+    // =====================================================
+    private void render() {
+        llComorbidityList.removeAllViews();
+        LayoutInflater inflater = LayoutInflater.from(this);
 
-        ComorbidityItem(String title, String text) {
+        for (ComorbidityItem item : items) {
+            View v = inflater.inflate(
+                    R.layout.item_comorbidity_history,
+                    llComorbidityList,
+                    false
+            );
+
+            ((TextView) v.findViewById(R.id.tvTitle))
+                    .setText(item.title);
+            ((TextView) v.findViewById(R.id.tvText))
+                    .setText(item.text);
+
+            v.findViewById(R.id.btnDeleteComorbidity)
+                    .setOnClickListener(x -> deleteFromServer(item));
+
+            llComorbidityList.addView(v);
+        }
+    }
+
+    private void toast(String m) {
+        Toast.makeText(this, m, Toast.LENGTH_SHORT).show();
+    }
+
+    // =====================================================
+    // MODEL
+    // =====================================================
+    static class ComorbidityItem {
+        final int id;
+        final String title, text;
+
+        ComorbidityItem(int id, String title, String text) {
+            this.id = id;
             this.title = title;
-            this.text  = text;
+            this.text = text;
         }
     }
 }

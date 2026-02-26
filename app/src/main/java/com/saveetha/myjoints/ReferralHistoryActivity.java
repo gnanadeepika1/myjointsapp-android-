@@ -22,7 +22,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -34,16 +33,17 @@ import java.util.List;
 public class ReferralHistoryActivity extends AppCompatActivity {
 
     private static final String TAG = "ReferralHistory";
-    private static final String PREFS_NAME     = "patient_prefs";
+    private static final String PREFS_NAME = "patient_prefs";
     private static final String KEY_PATIENT_ID = "patient_id";
 
-    // Use same server style as TreatmentsHistoryActivity
-    private static final String BASE_URL            = "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/";
-    private static final String ADD_REFERRAL_URL    = BASE_URL + "referralhistory_add.php";
-    private static final String GET_REFERRALS_URL   = BASE_URL + "referralhistory_get.php";
+    private static final String BASE_URL =
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/";
+    private static final String ADD_URL = BASE_URL + "referralhistory_add.php";
+    private static final String GET_URL = BASE_URL + "referralhistory_get.php";
+    private static final String DELETE_URL = BASE_URL + "referralhistory_delete.php";
 
     private ImageView backBtn;
-    private TextView tvTitle, tvPatientId;
+    private TextView tvPatientId;
     private RecyclerView rvReferrals;
     private FloatingActionButton fabAddReferral;
 
@@ -56,212 +56,252 @@ public class ReferralHistoryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_referrals_history);
 
-        backBtn      = findViewById(R.id.back_btn);
-        tvTitle      = findViewById(R.id.tvTitle);
-        tvPatientId  = findViewById(R.id.tvPatientId);
-        rvReferrals  = findViewById(R.id.rvReferrals);
+        backBtn = findViewById(R.id.back_btn);
+        tvPatientId = findViewById(R.id.tvPatientId);
+        rvReferrals = findViewById(R.id.rvReferrals);
         fabAddReferral = findViewById(R.id.fabAddReferral);
 
         backBtn.setOnClickListener(v -> onBackPressed());
 
-        // 1) Try to get from Intent (same as TreatmentsHistoryActivity)
         Intent intent = getIntent();
         if (intent != null) {
-            patientId = intent.getStringExtra("patient_id"); // note: lower case key
+            patientId = intent.getStringExtra("patient_id");
         }
 
-        // 2) Fallback: SharedPreferences
         if (TextUtils.isEmpty(patientId)) {
-            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            SharedPreferences prefs =
+                    getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
             patientId = prefs.getString(KEY_PATIENT_ID, null);
         }
 
-        // 3) Last resort: hard-coded for testing
         if (TextUtils.isEmpty(patientId)) {
-            patientId = "P0001";
-            Log.w(TAG, "No patient_id found; using P0001 for testing");
-            Toast.makeText(this,
-                    "No patient id passed, using P0001 (test)",
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Patient ID missing", Toast.LENGTH_LONG).show();
+            finish();
+            return;
         }
 
         tvPatientId.setText("Patient ID: " + patientId);
-        Log.d(TAG, "Using patientId = " + patientId);
 
-        // RecyclerView setup
         rvReferrals.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new ReferralAdapter(referralList);
+        rvReferrals.setItemAnimator(null);
+
+        adapter = new ReferralAdapter(referralList, this::confirmDeleteReferral);
         rvReferrals.setAdapter(adapter);
 
-        // Load existing referrals from server
         loadReferralsFromServer();
 
         fabAddReferral.setOnClickListener(v -> showAddReferralDialog());
     }
 
-    /** Dialog for doctor to add new referral. */
+    // =====================================================
+    // ADD REFERRAL (VALIDATION ADDED)
+    // =====================================================
     private void showAddReferralDialog() {
         EditText input = new EditText(this);
-        input.setHint("Enter referral text");
-        input.setMinLines(2);
-        input.setMaxLines(4);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setHint("Enter referral details");
+        input.setMinLines(3);
+        input.setMaxLines(6);
+        input.setInputType(
+                InputType.TYPE_CLASS_TEXT |
+                        InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        );
 
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Add Referral")
                 .setView(input)
-                .setPositiveButton("Save", (dialog, which) -> {
-                    String referralText = input.getText().toString().trim();
-                    if (!TextUtils.isEmpty(referralText)) {
-                        // We now always use real patientId
-                        ReferralItem newItem = new ReferralItem(referralText, patientId);
-                        referralList.add(0, newItem);
-                        adapter.notifyItemInserted(0);
-                        rvReferrals.smoothScrollToPosition(0);
-
-                        // Send to PHP/MySQL
-                        sendReferralToServer(referralText);
-                    }
-                })
+                .setPositiveButton("Save", null)
                 .setNegativeButton("Cancel", null)
-                .show();
+                .create();
+
+        dialog.setOnShowListener(d ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                        .setOnClickListener(v -> {
+
+                            String text = input.getText().toString().trim();
+
+                            if (TextUtils.isEmpty(text)) {
+                                input.setError("Required");
+                                return;
+                            }
+
+                            if (text.length() < 10 || text.length() > 300) {
+                                input.setError("10–300 characters only");
+                                return;
+                            }
+
+                            // ✅ ONLY LETTERS AND SPACES
+                            if (!text.matches("^[A-Za-z ]+$")) {
+                                input.setError("Only letters and spaces allowed");
+                                return;
+                            }
+
+                            addReferralToServer(text);
+                            dialog.dismiss();
+                        })
+        );
+
+        dialog.show();
     }
 
-    /** POST JSON to referralhistory_add.php */
-    private void sendReferralToServer(String message) {
+    private void addReferralToServer(String message) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(ADD_REFERRAL_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(ADD_URL).openConnection();
                 conn.setRequestMethod("POST");
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                 conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
-                JSONObject json = new JSONObject();
-                json.put("patient_id", patientId);
-                json.put("message", message);
-
-                String jsonBody = json.toString();
-                Log.d(TAG, "addReferral request: " + jsonBody);
+                JSONObject body = new JSONObject();
+                body.put("patient_id", patientId);
+                body.put("message", message);
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                int responseCode = conn.getResponseCode();
-                Log.d(TAG, "addReferral HTTP code: " + responseCode);
-
-                InputStream is = (responseCode < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
                 br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "addReferral response: " + respStr);
+                JSONObject res = new JSONObject(sb.toString());
 
-                JSONObject response = new JSONObject(respStr);
                 runOnUiThread(() -> {
-                    if (response.optBoolean("success")) {
-                        Toast.makeText(this, "Referral added", Toast.LENGTH_SHORT).show();
+                    if (res.optBoolean("success")) {
+                        Toast.makeText(
+                                this,
+                                "Referral added",
+                                Toast.LENGTH_SHORT
+                        ).show();
                         loadReferralsFromServer();
                     } else {
-                        Toast.makeText(this,
-                                response.optString("message", "Failed to add referral"),
-                                Toast.LENGTH_LONG).show();
+                        Toast.makeText(
+                                this,
+                                res.optString("message", "Add failed"),
+                                Toast.LENGTH_LONG
+                        ).show();
                     }
                 });
 
             } catch (Exception e) {
-                Log.e(TAG, "Error adding referral", e);
+                Log.e(TAG, "Add error", e);
                 runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error adding referral",
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                        Toast.makeText(
+                                this,
+                                "Server error",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
             }
         }).start();
     }
 
-    /** POST JSON to referralhistory_get.php and load list */
+    // =====================================================
+    // DELETE REFERRAL
+    // =====================================================
+    private void confirmDeleteReferral(ReferralItem item) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Referral")
+                .setMessage("Are you sure you want to delete this referral?")
+                .setPositiveButton(
+                        "Yes",
+                        (d, w) -> deleteReferralFromServer(item)
+                )
+                .setNegativeButton("No", null)
+                .show();
+    }
+
+    private void deleteReferralFromServer(ReferralItem item) {
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(DELETE_URL).openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
+
+                JSONObject body = new JSONObject();
+                body.put("id", item.getId());
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                os.close();
+
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
+                br.close();
+
+                runOnUiThread(this::loadReferralsFromServer);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Delete error", e);
+            }
+        }).start();
+    }
+
+    // =====================================================
+    // LOAD REFERRALS
+    // =====================================================
     private void loadReferralsFromServer() {
         new Thread(() -> {
-            HttpURLConnection conn = null;
-            List<ReferralItem> loaded = new ArrayList<>();
+            List<ReferralItem> temp = new ArrayList<>();
             try {
-                URL url = new URL(GET_REFERRALS_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(GET_URL).openConnection();
                 conn.setRequestMethod("POST");
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
                 conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
-                String jsonBody = body.toString();
-                Log.d(TAG, "loadReferrals request: " + jsonBody);
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes(StandardCharsets.UTF_8));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                int responseCode = conn.getResponseCode();
-                Log.d(TAG, "loadReferrals HTTP code: " + responseCode);
-
-                InputStream is = (responseCode < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
                 br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "loadReferrals response: " + respStr);
+                JSONObject res = new JSONObject(sb.toString());
+                JSONArray arr = res.optJSONArray("data");
 
-                JSONObject response = new JSONObject(respStr);
-                // PHP: { "success": true, "data": [ ... ] }
-                if (response.optBoolean("success")) {
-                    JSONArray arr = response.optJSONArray("data");
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length(); i++) {
-                            JSONObject obj = arr.getJSONObject(i);
-                            String msg = obj.optString("message");
-                            String pid = obj.optString("patient_id");
-                            loaded.add(new ReferralItem(msg, pid));
-                        }
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject o = arr.getJSONObject(i);
+                        temp.add(new ReferralItem(
+                                o.getInt("id"),
+                                o.getString("message"),
+                                o.getString("patient_id")
+                        ));
                     }
-                } else {
-                    String msg = response.optString("message",
-                            "Failed to load referrals");
-                    runOnUiThread(() ->
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
                 }
 
             } catch (Exception e) {
-                Log.e(TAG, "Error loading referrals", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error loading referrals",
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                Log.e(TAG, "Load error", e);
             }
 
             runOnUiThread(() -> {
                 referralList.clear();
-                referralList.addAll(loaded);
+                referralList.addAll(temp);
                 adapter.notifyDataSetChanged();
             });
         }).start();

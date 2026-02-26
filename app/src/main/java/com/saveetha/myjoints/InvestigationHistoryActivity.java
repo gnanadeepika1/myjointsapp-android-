@@ -1,6 +1,5 @@
 package com.saveetha.myjoints;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -22,13 +21,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 public class InvestigationHistoryActivity extends AppCompatActivity {
@@ -44,145 +43,138 @@ public class InvestigationHistoryActivity extends AppCompatActivity {
     private InvestigationHistoryAdapter adapter;
     private String patientId;
 
-    // Doctor: use SAME backend as patient
-    private static final String BASE_URL               = "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/";
-    private static final String ADD_INVESTIGATION_URL  = BASE_URL + "add_investigation.php";
-    private static final String GET_INVESTIGATIONS_URL = BASE_URL + "get_investigations.php";
+    private static final String BASE_URL =
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/";
+    private static final String ADD_URL    = BASE_URL + "add_investigation.php";
+    private static final String GET_URL    = BASE_URL + "get_investigations.php";
+    private static final String DELETE_URL = BASE_URL + "delete_investigation.php";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_investigation_history);
 
-        backBtn             = findViewById(R.id.back_btn);
-        tvPatientId         = findViewById(R.id.tvPatientId);
-        rvInvestigations    = findViewById(R.id.rvInvestigations);
+        backBtn = findViewById(R.id.back_btn);
+        tvPatientId = findViewById(R.id.tvPatientId);
+        rvInvestigations = findViewById(R.id.rvInvestigations);
         btnAddInvestigation = findViewById(R.id.btnAddInvestigation);
 
         backBtn.setOnClickListener(v -> onBackPressed());
 
-        // get patient_id from MedicalRecordsActivity
-        Intent intent = getIntent();
-        patientId = (intent != null) ? intent.getStringExtra("patient_id") : null;
-
+        patientId = getIntent().getStringExtra("patient_id");
         if (TextUtils.isEmpty(patientId)) {
-            Toast.makeText(this, "No patient ID provided", Toast.LENGTH_LONG).show();
-            Log.e(TAG, "patientId is null/empty");
-            tvPatientId.setText("Patient ID: -");
-        } else {
-            tvPatientId.setText("Patient ID: " + patientId);
-            Log.d(TAG, "patientId used = " + patientId);
+            Toast.makeText(this, "Patient ID missing", Toast.LENGTH_LONG).show();
+            finish();
+            return;
         }
 
-        rvInvestigations.setLayoutManager(
-                new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        tvPatientId.setText("Patient ID: " + patientId);
+
+        rvInvestigations.setLayoutManager(new LinearLayoutManager(this));
+        rvInvestigations.setItemAnimator(null);
+
+        adapter = new InvestigationHistoryAdapter(
+                this,
+                items,
+                this::confirmDeleteInvestigation
         );
-        adapter = new InvestigationHistoryAdapter(this, items);
         rvInvestigations.setAdapter(adapter);
 
-        // load existing investigations
         loadInvestigationsFromServer();
 
-        btnAddInvestigation.setOnClickListener(v -> {
-            if (TextUtils.isEmpty(patientId)) {
-                Toast.makeText(this, "Missing patient ID", Toast.LENGTH_LONG).show();
-            } else {
-                showAddInvestigationDialog();
-            }
-        });
+        btnAddInvestigation.setOnClickListener(v ->
+                showAddInvestigationDialog()
+        );
     }
 
-    // ---------------------- DIALOG ----------------------
+    // =====================================================
+    // ADD INVESTIGATION (VALIDATIONS ONLY ADDED)
+    // =====================================================
     private void showAddInvestigationDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_investigation, null);
 
-        EditText etHb                 = dialogView.findViewById(R.id.etHb);
-        EditText etTlc                = dialogView.findViewById(R.id.etTlc);
-        EditText etDc                 = dialogView.findViewById(R.id.etDc);
-        EditText etPlatelet           = dialogView.findViewById(R.id.etPlatelet);
-        EditText etEsr                = dialogView.findViewById(R.id.etEsr);
-        EditText etCrp                = dialogView.findViewById(R.id.etCrp);
-        EditText etLftTotalBilirubin  = dialogView.findViewById(R.id.etLftTotalBilirubin);
-        EditText etLftDirectBilirubin = dialogView.findViewById(R.id.etLftDirectBilirubin);
-        EditText etAst                = dialogView.findViewById(R.id.etAst);
-        EditText etAlt                = dialogView.findViewById(R.id.etAlt);
-        EditText etAlbumin            = dialogView.findViewById(R.id.etAlbumin);
-        EditText etTotalProtein       = dialogView.findViewById(R.id.etTotalProtein);
-        EditText etGgt                = dialogView.findViewById(R.id.etGgt);
-        EditText etUrea               = dialogView.findViewById(R.id.etUrea);
-        EditText etCreatinine         = dialogView.findViewById(R.id.etCreatinine);
-        EditText etUricAcid           = dialogView.findViewById(R.id.etUricAcid);
-        EditText etUrineRoutine       = dialogView.findViewById(R.id.etUrineRoutine);
-        EditText etUrinePcr           = dialogView.findViewById(R.id.etUrinePcr);
-        EditText etRaFactor           = dialogView.findViewById(R.id.etRaFactor);
-        EditText etAntiCcp            = dialogView.findViewById(R.id.etAntiCcp);
+        View v = getLayoutInflater()
+                .inflate(R.layout.dialog_add_investigation, null);
+
+        EditText hb = v.findViewById(R.id.etHb);
+        EditText tlc = v.findViewById(R.id.etTlc);
+        EditText dc = v.findViewById(R.id.etDc);
+        EditText platelet = v.findViewById(R.id.etPlatelet);
+        EditText esr = v.findViewById(R.id.etEsr);
+        EditText crp = v.findViewById(R.id.etCrp);
+        EditText lftTotal = v.findViewById(R.id.etLftTotalBilirubin);
+        EditText lftDirect = v.findViewById(R.id.etLftDirectBilirubin);
+        EditText ast = v.findViewById(R.id.etAst);
+        EditText alt = v.findViewById(R.id.etAlt);
+        EditText albumin = v.findViewById(R.id.etAlbumin);
+        EditText totalProtein = v.findViewById(R.id.etTotalProtein);
+        EditText ggt = v.findViewById(R.id.etGgt);
+        EditText urea = v.findViewById(R.id.etUrea);
+        EditText creatinine = v.findViewById(R.id.etCreatinine);
+        EditText uricAcid = v.findViewById(R.id.etUricAcid);
+        EditText urineRoutine = v.findViewById(R.id.etUrineRoutine);
+        EditText urinePcr = v.findViewById(R.id.etUrinePcr);
+        EditText raFactor = v.findViewById(R.id.etRaFactor);
+        EditText antiCcp = v.findViewById(R.id.etAntiCcp);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Add Investigation")
-                .setView(dialogView)
-                .setNegativeButton("Cancel", null)
+                .setView(v)
                 .setPositiveButton("Add", null)
+                .setNegativeButton("Cancel", null)
                 .create();
 
         dialog.setOnShowListener(d -> {
-            Button btnAdd = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            btnAdd.setOnClickListener((View v) -> {
-                String hb           = etHb.getText().toString().trim();
-                String tlc          = etTlc.getText().toString().trim();
-                String dc           = etDc.getText().toString().trim();
-                String platelet     = etPlatelet.getText().toString().trim();
-                String esr          = etEsr.getText().toString().trim();
-                String crp          = etCrp.getText().toString().trim();
-                String lftTotal     = etLftTotalBilirubin.getText().toString().trim();
-                String lftDirect    = etLftDirectBilirubin.getText().toString().trim();
-                String ast          = etAst.getText().toString().trim();
-                String alt          = etAlt.getText().toString().trim();
-                String albumin      = etAlbumin.getText().toString().trim();
-                String totalProtein = etTotalProtein.getText().toString().trim();
-                String ggt          = etGgt.getText().toString().trim();
-                String urea         = etUrea.getText().toString().trim();
-                String creatinine   = etCreatinine.getText().toString().trim();
-                String uricAcid     = etUricAcid.getText().toString().trim();
-                String urineRoutine = etUrineRoutine.getText().toString().trim();
-                String urinePcr     = etUrinePcr.getText().toString().trim();
-                String raFactor     = etRaFactor.getText().toString().trim();
-                String antiCcp      = etAntiCcp.getText().toString().trim();
+            Button add = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            add.setOnClickListener(btn -> {
 
-                if (TextUtils.isEmpty(hb) &&
-                        TextUtils.isEmpty(tlc) &&
-                        TextUtils.isEmpty(dc) &&
-                        TextUtils.isEmpty(platelet) &&
-                        TextUtils.isEmpty(esr) &&
-                        TextUtils.isEmpty(crp) &&
-                        TextUtils.isEmpty(lftTotal) &&
-                        TextUtils.isEmpty(lftDirect) &&
-                        TextUtils.isEmpty(ast) &&
-                        TextUtils.isEmpty(alt) &&
-                        TextUtils.isEmpty(albumin) &&
-                        TextUtils.isEmpty(totalProtein) &&
-                        TextUtils.isEmpty(ggt) &&
-                        TextUtils.isEmpty(urea) &&
-                        TextUtils.isEmpty(creatinine) &&
-                        TextUtils.isEmpty(uricAcid) &&
-                        TextUtils.isEmpty(urineRoutine) &&
-                        TextUtils.isEmpty(urinePcr) &&
-                        TextUtils.isEmpty(raFactor) &&
-                        TextUtils.isEmpty(antiCcp)) {
-                    Toast.makeText(this,
-                            "Please fill at least one field",
-                            Toast.LENGTH_SHORT).show();
+                try {
+                    validate(hb, 5, 20, true);
+                    validate(tlc, 1000, 30000, false);
+                    validate(dc, 0, 100, false);
+                    validate(platelet, 50000, 1000000, false);
+                    validate(esr, 0, 150, false);
+                    validate(crp, 0, 300, true);
+                    validate(lftTotal, 0, 20, true);
+                    validate(lftDirect, 0, 10, true);
+                    validate(ast, 0, 1000, false);
+                    validate(alt, 0, 1000, false);
+                    validate(albumin, 0, 10, true);
+                    validate(totalProtein, 0, 15, true);
+                    validate(ggt, 0, 1000, false);
+                    validate(urea, 0, 300, false);
+                    validate(creatinine, 0, 20, true);
+                    validate(uricAcid, 0, 20, true);
+                    validate(urineRoutine, 0, 100, false);
+                    validate(urinePcr, 0, 100, true);
+                    validate(raFactor, 0, 500, true);
+                    validate(antiCcp, 0, 500, true);
+                } catch (Exception e) {
                     return;
                 }
 
                 addInvestigationToServer(
-                        hb, tlc, dc, platelet,
-                        esr, crp,
-                        lftTotal, lftDirect,
-                        ast, alt, albumin, totalProtein, ggt,
-                        urea, creatinine, uricAcid,
-                        urineRoutine, urinePcr,
-                        raFactor, antiCcp
+                        hb.getText().toString().trim(),
+                        tlc.getText().toString().trim(),
+                        dc.getText().toString().trim(),
+                        platelet.getText().toString().trim(),
+                        esr.getText().toString().trim(),
+                        crp.getText().toString().trim(),
+                        lftTotal.getText().toString().trim(),
+                        lftDirect.getText().toString().trim(),
+                        ast.getText().toString().trim(),
+                        alt.getText().toString().trim(),
+                        albumin.getText().toString().trim(),
+                        totalProtein.getText().toString().trim(),
+                        ggt.getText().toString().trim(),
+                        urea.getText().toString().trim(),
+                        creatinine.getText().toString().trim(),
+                        uricAcid.getText().toString().trim(),
+                        urineRoutine.getText().toString().trim(),
+                        urinePcr.getText().toString().trim(),
+                        raFactor.getText().toString().trim(),
+                        antiCcp.getText().toString().trim()
                 );
+
                 dialog.dismiss();
             });
         });
@@ -190,28 +182,49 @@ public class InvestigationHistoryActivity extends AppCompatActivity {
         dialog.show();
     }
 
+    // =====================================================
+    // VALIDATION HELPER
+    // =====================================================
+    private void validate(EditText et, double min, double max, boolean decimal) {
+        String v = et.getText().toString().trim();
+        if (TextUtils.isEmpty(v)) {
+            et.setError("Required");
+            throw new RuntimeException();
+        }
+        if (!v.matches(decimal ? "^\\d+(\\.\\d+)?$" : "^\\d+$")) {
+            et.setError("Invalid number");
+            throw new RuntimeException();
+        }
+        double val = Double.parseDouble(v);
+        if (val < min || val > max) {
+            et.setError("Range " + min + " – " + max);
+            throw new RuntimeException();
+        }
+    }
+
+    // =====================================================
+    // ADD INVESTIGATION TO SERVER
+    // =====================================================
     private void addInvestigationToServer(
             String hb, String tlc, String dc, String platelet,
             String esr, String crp,
             String lftTotal, String lftDirect,
-            String ast, String alt, String albumin, String totalProtein, String ggt,
-            String urea, String creatinine, String uricAcid,
-            String urineRoutine, String urinePcr,
-            String raFactor, String antiCcp
+            String ast, String alt,
+            String albumin, String totalProtein,
+            String ggt, String urea, String creatinine,
+            String uricAcid, String urineRoutine,
+            String urinePcr, String raFactor, String antiCcp
     ) {
-        if (TextUtils.isEmpty(patientId)) {
-            Toast.makeText(this, "Missing patient ID", Toast.LENGTH_LONG).show();
-            return;
-        }
-
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(ADD_INVESTIGATION_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(ADD_URL).openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
@@ -236,180 +249,142 @@ public class InvestigationHistoryActivity extends AppCompatActivity {
                 body.put("ra_factor", raFactor);
                 body.put("anti_ccp", antiCcp);
 
-                String jsonBody = body.toString();
-                Log.d(TAG, "addInvestigationToServer request: " + jsonBody);
-
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                int code = conn.getResponseCode();
-                Log.d(TAG, "addInvestigationToServer HTTP code: " + code);
-
-                InputStream is = (code < 400) ? conn.getInputStream() : conn.getErrorStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) sb.append(line);
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
                 br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "addInvestigationToServer response: " + respStr);
-
-                JSONObject response = new JSONObject(respStr);
-
-                runOnUiThread(() -> {
-                    if (response.optBoolean("success")) {
-                        Toast.makeText(this, "Investigation added", Toast.LENGTH_SHORT).show();
-                        loadInvestigationsFromServer();
-                    } else {
-                        Toast.makeText(this,
-                                response.optString("message", "Failed to add"),
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
+                runOnUiThread(this::loadInvestigationsFromServer);
 
             } catch (Exception e) {
-                Log.e(TAG, "Error adding investigation", e);
+                Log.e(TAG, "Add error", e);
                 runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error adding investigation",
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                        Toast.makeText(
+                                this,
+                                "Server error",
+                                Toast.LENGTH_LONG
+                        ).show()
+                );
             }
         }).start();
     }
 
-    private void loadInvestigationsFromServer() {
-        if (TextUtils.isEmpty(patientId)) {
-            Log.e(TAG, "loadInvestigationsFromServer: patientId empty, skipping");
-            return;
-        }
+    // =====================================================
+    // DELETE INVESTIGATION
+    // =====================================================
+    private void confirmDeleteInvestigation(InvestigationItem item) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Investigation")
+                .setMessage("Are you sure you want to delete this investigation?")
+                .setPositiveButton("Yes",
+                        (d, w) -> deleteInvestigationFromServer(item))
+                .setNegativeButton("No", null)
+                .show();
+    }
 
+    private void deleteInvestigationFromServer(InvestigationItem item) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
-                URL url = new URL(GET_INVESTIGATIONS_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(DELETE_URL).openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
+
+                JSONObject body = new JSONObject();
+                body.put("id", item.getId());
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                os.close();
+
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
+                br.close();
+
+                runOnUiThread(this::loadInvestigationsFromServer);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Delete error", e);
+            }
+        }).start();
+    }
+
+    // =====================================================
+    // LOAD INVESTIGATIONS
+    // =====================================================
+    private void loadInvestigationsFromServer() {
+        new Thread(() -> {
+            try {
+                HttpURLConnection conn =
+                        (HttpURLConnection) new URL(GET_URL).openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty(
+                        "Content-Type",
+                        "application/json; charset=UTF-8"
+                );
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
-                String jsonBody = body.toString();
-                Log.d(TAG, "loadInvestigationsFromServer request: " + jsonBody);
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
                 os.close();
 
-                int code = conn.getResponseCode();
-                Log.d(TAG, "loadInvestigationsFromServer HTTP code: " + code);
-
-                InputStream is = (code < 400) ? conn.getInputStream() : conn.getErrorStream();
-                BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream())
+                );
                 StringBuilder sb = new StringBuilder();
                 String line;
                 while ((line = br.readLine()) != null) sb.append(line);
                 br.close();
 
-                String respStr = sb.toString();
-                Log.d(TAG, "loadInvestigationsFromServer response: " + respStr);
+                JSONObject res = new JSONObject(sb.toString());
+                JSONArray arr = res.optJSONArray("investigations");
 
-                JSONObject response = new JSONObject(respStr);
-
-                if (response.optBoolean("success")) {
-                    JSONArray arr = response.optJSONArray("investigations");
-                    items.clear();
-                    int count = 0;
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length(); i++) {
-                            JSONObject obj = arr.getJSONObject(i);
-                            List<String> details = new ArrayList<>();
-
-                            addIfNotEmpty(details, "Hb", obj.optString("hb", ""));
-                            addIfNotEmpty(details, "Total Leukocyte Count", obj.optString("total_leukocyte", ""));
-                            addIfNotEmpty(details, "Differential Count", obj.optString("differential_count", ""));
-                            addIfNotEmpty(details, "Platelet Count", obj.optString("platelet_count", ""));
-                            addIfNotEmpty(details, "ESR", obj.optString("esr", ""));
-                            addIfNotEmpty(details, "CRP", obj.optString("crp", ""));
-                            addIfNotEmpty(details, "LFT Total Bilirubin", obj.optString("lft_total_bilirubin", ""));
-                            addIfNotEmpty(details, "LFT Direct Bilirubin", obj.optString("lft_direct_bilirubin", ""));
-                            addIfNotEmpty(details, "AST", obj.optString("ast", ""));
-                            addIfNotEmpty(details, "ALT", obj.optString("alt", ""));
-                            addIfNotEmpty(details, "Albumin", obj.optString("albumin", ""));
-                            addIfNotEmpty(details, "Total Protein", obj.optString("total_protein", ""));
-                            addIfNotEmpty(details, "GGT", obj.optString("ggt", ""));
-                            addIfNotEmpty(details, "Urea", obj.optString("urea", ""));
-                            addIfNotEmpty(details, "Creatinine", obj.optString("creatinine", ""));
-                            addIfNotEmpty(details, "Uric Acid", obj.optString("uric_acid", ""));
-                            addIfNotEmpty(details, "Urine Routine", obj.optString("urine_routine", ""));
-                            addIfNotEmpty(details, "Urine PCR", obj.optString("urine_pcr", ""));
-                            addIfNotEmpty(details, "RA Factor", obj.optString("ra_factor", ""));
-                            addIfNotEmpty(details, "ANTI CCP", obj.optString("anti_ccp", ""));
-                            addIfNotEmpty(details, "created_at", obj.optString("created_at", ""));
-
-                            items.add(new InvestigationItem("Investigation", details));
-                            count++;
+                List<InvestigationItem> temp = new ArrayList<>();
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject o = arr.getJSONObject(i);
+                        List<String> details = new ArrayList<>();
+                        Iterator<String> keys = o.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            String v = o.optString(k);
+                            if (!TextUtils.isEmpty(v)
+                                    && !k.equals("created_at")) {
+                                details.add(
+                                        k.replace("_", " ").toUpperCase()
+                                                + ": " + v
+                                );
+                            }
                         }
+                        temp.add(new InvestigationItem(
+                                o.optInt("id", 0),
+                                "Investigation",
+                                details
+                        ));
                     }
-                    int finalCount = count;
-
-                    runOnUiThread(() -> {
-                        adapter.notifyDataSetChanged();
-                        Toast.makeText(this,
-                                "Loaded " + finalCount + " investigations",
-                                Toast.LENGTH_SHORT).show();
-                    });
-                } else {
-                    String msg = response.optString("message", "Failed to load investigations");
-                    runOnUiThread(() ->
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
                 }
 
+                runOnUiThread(() -> {
+                    items.clear();
+                    items.addAll(temp);
+                    adapter.notifyDataSetChanged();
+                });
+
             } catch (Exception e) {
-                Log.e(TAG, "Error loading investigations", e);
-                runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error loading investigations",
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                Log.e(TAG, "Load error", e);
             }
         }).start();
-    }
-
-    private void addIfNotEmpty(List<String> list, String label, String value) {
-        if (!TextUtils.isEmpty(value)) {
-            String v = value.trim();
-            if (!v.isEmpty()) {
-                list.add(label + ": " + v);
-            }
-        }
-    }
-
-    @SuppressWarnings("unused")
-    private List<InvestigationItem> buildSampleData() {
-        List<InvestigationItem> list = new ArrayList<>();
-        list.add(new InvestigationItem(
-                "Investigation",
-                Arrays.asList(
-                        "_id: 68d8684ad0b017721cb9932b",
-                        "created_at: 2025-09-27T22:42:18.544Z"
-                )
-        ));
-        list.add(new InvestigationItem(
-                "Investigation",
-                Arrays.asList(
-                        "_id: 68d86803d0b017721cb99329",
-                        "Total_leukocyte_count: 3",
-                        "created_at: 2025-09-27T22:41:07.359Z"
-                )
-        ));
-        return list;
     }
 }

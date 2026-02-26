@@ -28,8 +28,8 @@ public class TreatmentsActivity extends AppCompatActivity {
     private static final String PREFS_NAME     = "patient_prefs";
     private static final String KEY_PATIENT_ID = "patient_id";
 
-    // Same backend as doctor
-    private static final String BASE_URL           = "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/";
+    // Backend
+    private static final String BASE_URL = "http://14.139.187.229:8081/aug_batch2025/myjoints/";
     private static final String GET_TREATMENTS_URL = BASE_URL + "get_treatments.php";
 
     private RecyclerView rvTreatments;
@@ -37,6 +37,7 @@ public class TreatmentsActivity extends AppCompatActivity {
 
     private final List<Treatment> data = new ArrayList<>();
     private TreatmentAdapter adapter;
+
     private String patientId;
 
     @Override
@@ -49,11 +50,11 @@ public class TreatmentsActivity extends AppCompatActivity {
 
         backBtn.setOnClickListener(v -> onBackPressed());
 
-        // 1) Get patient ID from SharedPreferences (set at login)
+        // 1) Get patient ID from SharedPreferences
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         patientId = prefs.getString(KEY_PATIENT_ID, null);
 
-        // 2) Fallback: from Intent extra (if passed)
+        // 2) Fallback from Intent
         if (TextUtils.isEmpty(patientId)) {
             patientId = getIntent().getStringExtra("patient_id");
         }
@@ -70,7 +71,6 @@ public class TreatmentsActivity extends AppCompatActivity {
         rvTreatments.setLayoutManager(new LinearLayoutManager(this));
         rvTreatments.setAdapter(adapter);
 
-        // Load from server (doctor-entered treatments)
         loadTreatmentsFromServer();
     }
 
@@ -84,7 +84,7 @@ public class TreatmentsActivity extends AppCompatActivity {
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
 
-                // JSON body: { "patient_id": "P0001" }
+                // JSON body
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
 
@@ -96,6 +96,7 @@ public class TreatmentsActivity extends AppCompatActivity {
                 InputStream is = (conn.getResponseCode() < 400)
                         ? conn.getInputStream()
                         : conn.getErrorStream();
+
                 BufferedReader br = new BufferedReader(new InputStreamReader(is));
                 StringBuilder sb = new StringBuilder();
                 String line;
@@ -105,6 +106,7 @@ public class TreatmentsActivity extends AppCompatActivity {
                 JSONObject response = new JSONObject(sb.toString());
 
                 if (response.optBoolean("success")) {
+
                     JSONArray arr = response.optJSONArray("treatments");
                     data.clear();
 
@@ -112,50 +114,32 @@ public class TreatmentsActivity extends AppCompatActivity {
                         for (int i = 0; i < arr.length(); i++) {
                             JSONObject obj = arr.getJSONObject(i);
 
-                            String medName   = obj.optString("medication_name", "");
-                            String dose      = obj.optString("dose", "");
-                            String route     = obj.optString("route", "");
-                            String freqNum   = obj.optString("frequency_number", "");
-                            String freqText  = obj.optString("frequency_text", "");
-                            String weeks     = obj.optString("time_period_weeks", "");
-                            String createdAt = obj.optString("created_at", "");
+                            // ✅ MATCHES doctor side + DB + PHP
+                            String medName  = obj.optString("name", "");
+                            String dose     = obj.optString("dose", "");
+                            String route    = obj.optString("route", "");
+                            String freqNum  = obj.optString("frequency_number", "");
+                            String freqText = obj.optString("frequency_text", "");
+                            String duration = obj.optString("duration", "");
 
-                            // Build display lines for this treatment card
                             List<String> lines = new ArrayList<>();
 
-                            if (!TextUtils.isEmpty(medName)) {
+                            if (!TextUtils.isEmpty(medName))
                                 lines.add("Medication: " + medName);
-                            }
-                            if (!TextUtils.isEmpty(dose)) {
+
+                            if (!TextUtils.isEmpty(dose))
                                 lines.add("Dose: " + dose);
-                            }
-                            if (!TextUtils.isEmpty(route)) {
+
+                            if (!TextUtils.isEmpty(route))
                                 lines.add("Route: " + route);
-                            }
 
-                            // Frequency and duration
-                            StringBuilder freqBuilder = new StringBuilder();
-                            if (!TextUtils.isEmpty(freqNum)) {
-                                freqBuilder.append(freqNum);
-                            }
-                            if (!TextUtils.isEmpty(freqText)) {
-                                if (freqBuilder.length() > 0) freqBuilder.append(" ");
-                                freqBuilder.append(freqText);
-                            }
-                            if (freqBuilder.length() > 0) {
-                                lines.add("Frequency: " + freqBuilder.toString());
-                            }
+                            if (!TextUtils.isEmpty(freqNum) || !TextUtils.isEmpty(freqText))
+                                lines.add("Frequency: " + freqNum + " " + freqText);
 
-                            if (!TextUtils.isEmpty(weeks)) {
-                                lines.add("Duration: " + weeks + " weeks");
-                            }
-
-                            if (!TextUtils.isEmpty(createdAt)) {
-                                lines.add("Started on: " + createdAt);
-                            }
+                            if (!TextUtils.isEmpty(duration))
+                                lines.add("Duration: " + duration + " weeks");
 
                             if (!lines.isEmpty()) {
-                                // Title "Treatment" same as your previous static examples
                                 data.add(new Treatment("Treatment", lines));
                             }
                         }
@@ -164,17 +148,22 @@ public class TreatmentsActivity extends AppCompatActivity {
                     runOnUiThread(() -> adapter.notifyDataSetChanged());
 
                 } else {
-                    String msg = response.optString("message",
-                            "Failed to load treatments");
+                    String msg = response.optString(
+                            "message",
+                            "Failed to load treatments"
+                    );
                     runOnUiThread(() ->
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
+                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    );
                 }
+
             } catch (Exception e) {
                 e.printStackTrace();
                 runOnUiThread(() ->
                         Toast.makeText(this,
                                 "Error loading treatments",
-                                Toast.LENGTH_LONG).show());
+                                Toast.LENGTH_LONG).show()
+                );
             } finally {
                 if (conn != null) conn.disconnect();
             }

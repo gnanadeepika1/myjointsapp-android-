@@ -3,7 +3,6 @@ package com.saveetha.myjoints;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
@@ -41,14 +40,17 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
     private ComplaintHistoryAdapter adapter;
 
     private static final String GET_COMPLAINTS_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/get_complaints.php";
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/get_complaints.php";
     private static final String ADD_COMPLAINT_URL =
-            "https://3cxr1p7f-80.inc1.devtunnels.ms/jointcare/add_complaint.php";
-
-    private static final String TAG = "ComplaintHistory";
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/add_complaint.php";
+    private static final String DELETE_COMPLAINT_URL =
+            "http://14.139.187.229:8081/aug_batch2025/myjoints/delete_complaint.php";
 
     private static final String PREFS_NAME_DOCTOR = "doctor_prefs";
-    private static final String KEY_DOCTOR_ID     = "doctor_id";
+    private static final String KEY_DOCTOR_ID = "doctor_id";
+
+    private static final int MIN_COMPLAINT_LENGTH = 3;
+    private static final int MAX_COMPLAINT_LENGTH = 100;
 
     private String patientId;
     private String doctorId;
@@ -58,38 +60,31 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_complaint_history);
 
-        rvComplaintHistory     = findViewById(R.id.rvComplaintHistory);
-        backBtn                = findViewById(R.id.back_btn);
+        rvComplaintHistory = findViewById(R.id.rvComplaintHistory);
+        backBtn = findViewById(R.id.back_btn);
         fabAddComplaintHistory = findViewById(R.id.fabAddComplaintHistory);
-        tvPatientId            = findViewById(R.id.tvPatientId);
+        tvPatientId = findViewById(R.id.tvPatientId);
 
-        // patient id passed from MyPatientsActivity
         patientId = getIntent().getStringExtra("patient_id");
         if (TextUtils.isEmpty(patientId)) {
-            Toast.makeText(this,
-                    "No patient id provided to ComplaintHistoryActivity",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "No patient id provided", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
-        // show it under the title
         tvPatientId.setText("Patient ID: " + patientId);
 
-        // get doctor_id from SharedPreferences (doctor login)
         SharedPreferences prefs =
                 getSharedPreferences(PREFS_NAME_DOCTOR, MODE_PRIVATE);
         doctorId = prefs.getString(KEY_DOCTOR_ID, null);
+
         if (TextUtils.isEmpty(doctorId)) {
-            Toast.makeText(this,
-                    "No doctor id found. Please login again.",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Please login again", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
         backBtn.setOnClickListener(v -> onBackPressed());
-
         fabAddComplaintHistory.setOnClickListener(v -> showAddComplaintDialog());
 
         rvComplaintHistory.setLayoutManager(new LinearLayoutManager(this));
@@ -99,23 +94,42 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
         loadComplaintsFromServer();
     }
 
-    // ---------------- Add complaint (doctor) ----------------
+    // ---------------- ADD COMPLAINT ----------------
     private void showAddComplaintDialog() {
         final EditText input = new EditText(this);
-        input.setHint("Enter complaint (title)");
+        input.setHint("Enter complaint");
 
         new AlertDialog.Builder(this)
                 .setTitle("Add Complaint")
                 .setView(input)
                 .setPositiveButton("Submit", (dialog, which) -> {
                     String text = input.getText().toString().trim();
-                    if (text.isEmpty()) {
-                        Toast.makeText(this,
-                                "Complaint cannot be empty",
-                                Toast.LENGTH_SHORT).show();
-                    } else {
-                        addComplaintToServer(text);
+
+                    if (TextUtils.isEmpty(text)) {
+                        Toast.makeText(this, "Complaint cannot be empty", Toast.LENGTH_SHORT).show();
+                        return;
                     }
+                    if (text.length() < MIN_COMPLAINT_LENGTH) {
+                        Toast.makeText(this, "Minimum 3 characters", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (text.length() > MAX_COMPLAINT_LENGTH) {
+                        Toast.makeText(this, "Maximum 100 characters", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!text.matches("^[A-Za-z ,.]+$")) {
+                        Toast.makeText(this, "Only letters allowed", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    for (ComplaintHistoryItem item : complaints) {
+                        if (item.title.equalsIgnoreCase(text)) {
+                            Toast.makeText(this, "Complaint already exists", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    }
+
+                    addComplaintToServer(text);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
@@ -123,15 +137,11 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
 
     private void addComplaintToServer(String title) {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
                 URL url = new URL(ADD_COMPLAINT_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setDoInput(true);
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
 
                 JSONObject body = new JSONObject();
@@ -140,148 +150,145 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
                 body.put("title", title);
                 body.put("description", "");
 
-                String jsonBody = body.toString();
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes("UTF-8"));
                 os.close();
 
-                int code = conn.getResponseCode();
-                InputStream is = (code >= 200 && code < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
+                while ((line = br.readLine()) != null) sb.append(line);
 
-                String respStr = sb.toString();
-                Log.d(TAG, "ADD_COMPLAINT response: " + respStr);
-
-                JSONObject json = new JSONObject(respStr);
-                boolean success = json.optBoolean("success", false);
-                String msg = json.optString("message",
-                        success ? "Complaint added" : "Failed to add complaint");
+                JSONObject resp = new JSONObject(sb.toString());
+                boolean success = resp.optBoolean("success");
 
                 runOnUiThread(() -> {
-                    Toast.makeText(ComplaintHistoryActivity.this,
-                            msg,
-                            Toast.LENGTH_LONG).show();
-                    if (success) {
-                        loadComplaintsFromServer();
-                    }
+                    Toast.makeText(this,
+                            success ? "Complaint added" : "Failed",
+                            Toast.LENGTH_SHORT).show();
+                    if (success) loadComplaintsFromServer();
                 });
 
             } catch (Exception e) {
-                e.printStackTrace();
                 runOnUiThread(() ->
-                        Toast.makeText(ComplaintHistoryActivity.this,
-                                "Error adding complaint: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show()
-                );
-            } finally {
-                if (conn != null) conn.disconnect();
+                        Toast.makeText(this, "Error adding complaint", Toast.LENGTH_LONG).show());
             }
         }).start();
     }
 
-    // ---------------- Load complaints ----------------
+    // ---------------- LOAD COMPLAINTS ----------------
     private void loadComplaintsFromServer() {
         new Thread(() -> {
-            HttpURLConnection conn = null;
             try {
                 URL url = new URL(GET_COMPLAINTS_URL);
-                conn = (HttpURLConnection) url.openConnection();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setDoInput(true);
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
                 conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
 
                 JSONObject body = new JSONObject();
                 body.put("patient_id", patientId);
-                String jsonBody = body.toString();
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonBody.getBytes("UTF-8"));
-                os.flush();
+                os.write(body.toString().getBytes("UTF-8"));
                 os.close();
 
-                InputStream is = (conn.getResponseCode() >= 200 && conn.getResponseCode() < 400)
-                        ? conn.getInputStream()
-                        : conn.getErrorStream();
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
                 StringBuilder sb = new StringBuilder();
                 String line;
-                while ((line = reader.readLine()) != null)
-                    sb.append(line);
+                while ((line = br.readLine()) != null) sb.append(line);
 
-                String respStr = sb.toString();
-                Log.d(TAG, "GET_COMPLAINTS response: " + respStr);
+                JSONObject json = new JSONObject(sb.toString());
+                JSONArray arr = json.optJSONArray("complaints");
 
-                JSONObject json = new JSONObject(respStr);
-                boolean success = json.getBoolean("success");
-
-                if (success) {
-                    JSONArray arr = json.optJSONArray("complaints");
-                    List<ComplaintHistoryItem> tempList = new ArrayList<>();
-
-                    if (arr != null) {
-                        for (int i = 0; i < arr.length(); i++) {
-                            JSONObject c = arr.getJSONObject(i);
-                            String title     = c.optString("title", "");
-                            String createdAt = c.optString("created_at", "");
-                            tempList.add(new ComplaintHistoryItem(title, createdAt));
-                        }
+                List<ComplaintHistoryItem> temp = new ArrayList<>();
+                if (arr != null) {
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject c = arr.getJSONObject(i);
+                        temp.add(new ComplaintHistoryItem(
+                                c.optString("title"),
+                                c.optString("created_at")));
                     }
-
-                    runOnUiThread(() -> {
-                        complaints.clear();
-                        complaints.addAll(tempList);
-                        adapter.notifyDataSetChanged();
-
-                        if (complaints.isEmpty()) {
-                            Toast.makeText(this,
-                                    "No complaints found for this patient",
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } else {
-                    String msg = json.optString("message", "Failed to load complaints");
-                    runOnUiThread(() ->
-                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show());
                 }
+
+                runOnUiThread(() -> {
+                    complaints.clear();
+                    complaints.addAll(temp);
+                    adapter.notifyDataSetChanged();
+                });
+
             } catch (Exception e) {
-                e.printStackTrace();
                 runOnUiThread(() ->
-                        Toast.makeText(this,
-                                "Error loading complaints: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show());
-            } finally {
-                if (conn != null) conn.disconnect();
+                        Toast.makeText(this, "Error loading complaints", Toast.LENGTH_LONG).show());
             }
         }).start();
     }
 
-    // ---------------- Model ----------------
+    // ---------------- DELETE COMPLAINT ----------------
+    private void showDeleteConfirmation(String title) {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Complaint")
+                .setMessage("Are you sure you want to delete this complaint?")
+                .setPositiveButton("Yes", (d, w) -> deleteComplaintFromServer(title))
+                .setNegativeButton("No", null)
+                .show();
+    }
+
+    private void deleteComplaintFromServer(String title) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(DELETE_COMPLAINT_URL);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+
+                JSONObject body = new JSONObject();
+                body.put("patient_id", patientId);
+                body.put("title", title);
+
+                OutputStream os = conn.getOutputStream();
+                os.write(body.toString().getBytes("UTF-8"));
+                os.close();
+
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+
+                JSONObject resp = new JSONObject(sb.toString());
+                boolean success = resp.optBoolean("success");
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this,
+                            success ? "Complaint deleted" : "Delete failed",
+                            Toast.LENGTH_SHORT).show();
+                    if (success) loadComplaintsFromServer();
+                });
+
+            } catch (Exception e) {
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Error deleting complaint", Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    // ---------------- MODEL ----------------
     private static class ComplaintHistoryItem {
         final String title;
         final String date;
 
         ComplaintHistoryItem(String title, String date) {
             this.title = title;
-            this.date  = date;
+            this.date = date;
         }
     }
 
-    // ---------------- Adapter ----------------
-    private static class ComplaintHistoryAdapter
+    // ---------------- ADAPTER ----------------
+    private class ComplaintHistoryAdapter
             extends RecyclerView.Adapter<ComplaintHistoryAdapter.ViewHolder> {
 
         private final List<ComplaintHistoryItem> items;
@@ -291,7 +298,9 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
         }
 
         @Override
-        public ViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
+        public ViewHolder onCreateViewHolder(
+                android.view.ViewGroup parent, int viewType) {
+
             View view = LayoutInflater.from(parent.getContext())
                     .inflate(R.layout.item_complaint_history, parent, false);
             return new ViewHolder(view);
@@ -302,6 +311,9 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
             ComplaintHistoryItem item = items.get(position);
             holder.tvComplaintTitle.setText(item.title);
             holder.tvComplaintDate.setText("Date: " + item.date);
+
+            holder.btnDelete.setOnClickListener(v ->
+                    showDeleteConfirmation(item.title));
         }
 
         @Override
@@ -309,13 +321,15 @@ public class ComplaintHistoryActivity extends AppCompatActivity {
             return items.size();
         }
 
-        static class ViewHolder extends RecyclerView.ViewHolder {
+        class ViewHolder extends RecyclerView.ViewHolder {
             TextView tvComplaintTitle, tvComplaintDate;
+            ImageView btnDelete;
 
             ViewHolder(View itemView) {
                 super(itemView);
                 tvComplaintTitle = itemView.findViewById(R.id.tvComplaintTitle);
                 tvComplaintDate  = itemView.findViewById(R.id.tvComplaintDate);
+                btnDelete        = itemView.findViewById(R.id.btnDeleteComplaint);
             }
         }
     }

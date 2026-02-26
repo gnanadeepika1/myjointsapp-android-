@@ -10,30 +10,51 @@
     card_view:cardUseCompatPadding="true"
     android:foreground="?android:attr/selectableItemBackground">
 
+    <!-- Main container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:padding="14dp"
-        android:background="#E7F5FF"> <!-- light blue container -->
+        android:background="#E7F5FF">
 
-        <TextView
-            android:id="@+id/tvComplaintTitle"
-            android:layout_width="match_parent"
+        <!-- LEFT: Complaint details -->
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="This is a Complaint"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="#F5A1D9" /> <!-- light pink title -->
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tvComplaintDate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Date: 2025-09-23T10:16:05.091Z"
-            android:textSize="14sp"
-            android:textColor="#000000" /> <!-- date in black -->
+            <TextView
+                android:id="@+id/tvComplaintTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="This is a Complaint"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="#F5A1D9" />
+
+            <TextView
+                android:id="@+id/tvComplaintDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Date: 2025-09-23T10:16:05.091Z"
+                android:textSize="14sp"
+                android:textColor="#000000" />
+        </LinearLayout>
+
+        <!-- RIGHT: Delete button (bigger + black) -->
+        <ImageView
+            android:id="@+id/btnDeleteComplaint"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_delete_account"
+            android:padding="8dp"
+            android:layout_gravity="center_vertical"
+            android:tint="#000000"
+            android:contentDescription="Delete Complaint" />
+
     </LinearLayout>
 
 </androidx.cardview.widget.CardView>

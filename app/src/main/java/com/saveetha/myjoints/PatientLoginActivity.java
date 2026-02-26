@@ -37,7 +37,7 @@ public class PatientLoginActivity extends AppCompatActivity {
     private static final String KEY_PATIENT_EMAIL = "patient_email";
 
     private static final String LOGIN_URL =
-            RetrofitClient.BASE_URL + "jointcare/patient_login_api.php";
+            RetrofitClient.BASE_URL + "patient_login_api.php";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -34,7 +34,7 @@ public class PatientSignupActivity extends AppCompatActivity {
     private static final String KEY_PATIENT_EMAIL = "patient_email";
 
     private static final String SIGNUP_URL =
-            RetrofitClient.BASE_URL + "jointcare/patient_signup.php";
+            RetrofitClient.BASE_URL + "patient_signup.php";
 
     // 🔹 REGEX
     private static final String NAME_PATTERN = "^[A-Za-z ]+$";
